@@ -534,6 +534,7 @@ plugins:                           # plugin list (sorted by priority)
   - serverless-post-function       # priority: -2000
   - ext-plugin-post-req            # priority: -3000
   - ext-plugin-post-resp           # priority: -4000
+  - token-to-uuid                  # priority: 99
 
 stream_plugins:                    # stream plugin list (sorted by priority)
   - ip-restriction                 # priority: 3000
