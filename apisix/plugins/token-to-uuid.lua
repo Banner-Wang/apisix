@@ -66,13 +66,18 @@ end
 
 -- Optimized rewrite function
 function _M.rewrite(conf, ctx)
+    core.log.info("Exclude Rewrite URIs: ", core.json.encode(conf.exclude_rewrite_uris))
     local request_uri = ngx.var.uri
 
     -- Check if the current URI is in the exclusion list
     if conf.exclude_rewrite_uris and type(conf.exclude_rewrite_uris) == "table" then
         for _, uri in ipairs(conf.exclude_rewrite_uris) do
-            if uri == request_uri then
-                core.log.info("URI ", request_uri, " is in the exclusion list, skipping rewrite")
+            -- Convert the excluded URI template to Lua pattern, supporting dynamic path parameters
+            local escaped_uri = uri:gsub("([%.%+%-%*%?%[%]%^%$%(%)])", "%%%1")
+            local pattern = "^" .. escaped_uri:gsub("{[%w_]+}", "[^/]+") .. "$"
+            core.log.info("request_uri: ", request_uri, "pattern: ", pattern, "uri: ", uri)
+            if request_uri:match(pattern) then
+                core.log.warn("URI ", request_uri, " matches exclusion pattern ", uri, ", skipping rewrite")
                 return
             end
         end
@@ -112,19 +117,19 @@ function _M.rewrite(conf, ctx)
         return _M.unauthorized()
     end
 
-    -- Parse the response body, assuming it returns a JSON structure containing uuid
+    -- Parse the response body, assuming it returns a JSON structure containing user_id
     local cjson = require("cjson")
     local res_body = cjson.decode(res.body)
-    local uuid = res_body.uuid
-    if not uuid or uuid == "" then
-        core.log.error("uuid is empty")
+    local user_id = res_body.user_id
+    if not user_id then
+        core.log.error("user_id is empty")
         return _M.unauthorized()
     end
 
-    -- Step 3: Rewrite the uuid into the request header
-    ngx.req.set_header("UID", uuid)
+    -- Step 3: Rewrite the user_id into the request header
+    ngx.req.set_header("UID", user_id)
 
-    core.log.info("Rewritten uuid into request header: ", uuid)
+    core.log.info("Rewritten user_id into request header: ", user_id)
 end
 
 -- Unified Unauthorized response function

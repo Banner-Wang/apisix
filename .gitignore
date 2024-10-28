@@ -88,4 +88,4 @@ pack-v*-linux.tgz*
 *.tgz
 release/*
 
-
+APISIX_routes_*.json
