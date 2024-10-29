@@ -117,9 +117,25 @@ function _M.rewrite(conf, ctx)
         return _M.unauthorized()
     end
 
-    -- Parse the response body, assuming it returns a JSON structure containing user_id
     local cjson = require("cjson")
-    local res_body = cjson.decode(res.body)
+    -- Check if response body is empty or "null"
+    if not res.body or res.body == "" or res.body == "null" then
+        core.log.error("Empty or null response body")
+        return _M.unauthorized()
+    end
+
+    local res_body, err = cjson.decode(res.body)
+    if not res_body then
+        core.log.error("Failed to decode response body: ", err)
+        return _M.unauthorized()
+    end
+
+    -- Check if res_body is nil or not a table
+    if type(res_body) ~= "table" then
+        core.log.error("Invalid response body format")
+        return _M.unauthorized()
+    end
+
     local user_id = res_body.user_id
     if not user_id then
         core.log.error("user_id is empty")
