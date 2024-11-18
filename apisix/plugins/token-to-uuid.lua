@@ -86,10 +86,16 @@ function _M.rewrite(conf, ctx)
     -- Step 1: Get the Authorization token from the request header
     local headers = ngx.req.get_headers()
     local token = headers["Authorization"]
+    local request_id = headers["Request-Id"]
+
+    if not request_id then
+        core.log.warn("Request-Id not found, generating a new one")
+        request_id = uuid()
+    end
 
     if not token or token == "" then
         core.log.warn("Authorization token not found")
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     -- Step 2: Call the getUID interface of the USER service, and put the Authorization token in the request header
@@ -103,43 +109,44 @@ function _M.rewrite(conf, ctx)
         method = "GET",
         headers = {
             ["Authorization"] = token,
+            ["Request-Id"] = request_id
         },
         ssl_verify = false
     })
 
     if not res then
         core.log.error("Failed to request USER service: ", err)
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     if res.status ~= 200 then
         core.log.error("Failed to get UID, status code: ", res.status)
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     local cjson = require("cjson")
     -- Check if response body is empty or "null"
     if not res.body or res.body == "" or res.body == "null" then
         core.log.error("Empty or null response body")
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     local res_body, err = cjson.decode(res.body)
     if not res_body then
         core.log.error("Failed to decode response body: ", err)
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     -- Check if res_body is nil or not a table
     if type(res_body) ~= "table" then
         core.log.error("Invalid response body format")
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     local user_id = res_body.user_id
     if not user_id then
         core.log.error("user_id is empty")
-        return _M.unauthorized()
+        return _M.unauthorized(request_id)
     end
 
     -- Step 3: Rewrite the user_id into the request header
@@ -149,9 +156,10 @@ function _M.rewrite(conf, ctx)
 end
 
 -- Unified Unauthorized response function
-function _M.unauthorized()
+function _M.unauthorized(request_id)
     ngx.status = ngx.HTTP_UNAUTHORIZED
     ngx.header["Content-Type"] = "application/json"
+    ngx.header["Request-Id"] = request_id
     ngx.say('{"error": "Unauthorized"}')
     return ngx.exit(ngx.HTTP_UNAUTHORIZED)
 end
